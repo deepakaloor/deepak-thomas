@@ -130,12 +130,15 @@ body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:9997;
 
 /* ---------- Hero ---------- */
 #s-hero .hero-portrait{
-  position:absolute;right:max(4vw,calc(50% - 620px));top:50%;transform:translateY(-50%);height:min(72svh,720px);aspect-ratio:4/5;z-index:2;pointer-events:none;
-  -webkit-mask-image:radial-gradient(ellipse 62% 60% at 50% 44%, #000 48%, transparent 76%);
-  mask-image:radial-gradient(ellipse 62% 60% at 50% 44%, #000 48%, transparent 76%);
+  position:absolute;right:max(-5vw,calc(50% - 820px));top:50%;transform:translateY(-50%);
+  width:min(40vw,580px);aspect-ratio:4/5;z-index:2;pointer-events:none;opacity:0;
+  -webkit-mask-image:radial-gradient(ellipse 72% 70% at 55% 40%, #000 50%, transparent 82%);
+          mask-image:radial-gradient(ellipse 72% 70% at 55% 40%, #000 50%, transparent 82%);
   will-change:transform,opacity;
 }
-#s-hero .hero-portrait img{width:100%;height:100%;object-fit:cover;object-position:top;display:block;filter:grayscale(1) contrast(1.05)}
+#s-hero .hero-portrait img{width:100%;height:100%;object-fit:cover;object-position:54% 12%;display:block;filter:grayscale(1) contrast(1.05)}
+/* below 1200px there isn't room beside the headline — hide so the image never sits behind the text */
+@media(max-width:1200px){#s-hero .hero-portrait{display:none}}
 #s-hero .sweep{position:absolute;inset:0;z-index:3;pointer-events:none;opacity:0;
   background:linear-gradient(115deg, transparent 30%, rgba(245,244,240,.14) 46%, rgba(107,144,206,.18) 50%, rgba(245,244,240,.14) 54%, transparent 70%);
   will-change:transform,opacity}
@@ -445,16 +448,10 @@ body.settled .hl>span{animation:none;transform:none}
 </section>
 
 <!-- HERO -->
-<section class="scene" id="s-hero" data-len="220" style="height:220vh">
+<section class="scene" id="s-hero" data-len="140" style="height:140vh">
   <div class="stage">
-    <div class="hero-orbit" id="heroOrbit" aria-hidden="true">
-      <svg viewBox="0 0 400 400">
-        <circle class="ring" cx="200" cy="200" r="188"/>
-        <circle class="ring dim" cx="200" cy="200" r="140"/>
-        <circle class="ring" cx="200" cy="200" r="92"/>
-        <g class="spin"><circle class="node" cx="200" cy="12" r="3.2"/></g>
-        <g class="spin rev"><circle class="node" cx="200" cy="60" r="2.2" opacity=".7"/></g>
-      </svg>
+    <div class="hero-portrait" id="heroPortrait" aria-hidden="true">
+      <img src="deepak-thomas-color-web.png" width="1000" height="1000" alt="Deepak Thomas" fetchpriority="high">
     </div>
     <div class="inner">
       <div style="max-width:940px">
@@ -792,6 +789,9 @@ body.settled .hl>span{animation:none;transform:none}
   var nfacts = Array.prototype.slice.call(document.querySelectorAll('#s-now .nf'));
   var ntitle=E('ntitle'), nlink=E('nlink'), bar=E('progress');
   var glowA = E('glowA'), glowB = E('glowB'), heroOrbit = E('heroOrbit');
+  var heroPortrait = E('heroPortrait'), portImg = heroPortrait ? heroPortrait.querySelector('img') : null, portColor = 0;
+  /* no cursor (touch) or reduced-motion: show the portrait in full colour, no reveal */
+  if(portImg && (!matchMedia('(pointer:fine)').matches || reduced)){ portImg.style.filter = 'grayscale(0) contrast(1.03)'; }
   var years = ['2015','2015','2016','2019','2022','NOW'];
   var labeled = Array.prototype.slice.call(document.querySelectorAll('[data-label]'))
     .map(function(el){ return [el, el.getAttribute('data-label')]; });
@@ -835,11 +835,12 @@ body.settled .hl>span{animation:none;transform:none}
   setTimeout(function(){ document.body.classList.add('settled'); }, 1900);
 
   /* pointer */
-  var mx=0, my=0, pmx=0, pmy=0;
+  var mx=0, my=0, pmx=0, pmy=0, rawX=-99999, rawY=-99999;
   if(matchMedia('(pointer:fine)').matches){
     addEventListener('mousemove', function(e){
       mx = e.clientX/innerWidth - 0.5;
       my = e.clientY/innerHeight - 0.5;
+      rawX = e.clientX; rawY = e.clientY;
     }, {passive:true});
   }
 
@@ -922,20 +923,33 @@ body.settled .hl>span{animation:none;transform:none}
 
     /* ---- HERO ---- */
     var p = sp.hero;
-    if(heroOrbit){
-      var hob = ss((performance.now()-born-700)/1500) * (1 - ss((p-0.05)*2.2));
-      heroOrbit.style.opacity = hob;
-      heroOrbit.style.transform = 'translateY(-50%) translate(' + (pmx*22) + 'px,' + (pmy*16) + 'px)';
+    if(heroPortrait){
+      var pob = ss((performance.now()-born-500)/1600);
+      heroPortrait.style.opacity = pob;
+      heroPortrait.style.transform = 'translateY(-50%) translate(' + (pmx*16) + 'px,' + (pmy*11 - ss(clamp((p-0.5)/0.5,0,1))*26) + 'px)';
+      /* greyscale by default; colour blooms in as the cursor approaches */
+      if(portImg && rawX > -9998){
+        var pr = heroPortrait.getBoundingClientRect(), tgt = 0;
+        if(pr.bottom > 0 && pr.top < innerHeight){
+          var dx = Math.max(pr.left - rawX, 0, rawX - pr.right),
+              dy = Math.max(pr.top - rawY, 0, rawY - pr.bottom),
+              dist = Math.sqrt(dx*dx + dy*dy);
+          tgt = clamp(1 - dist/290, 0, 1);
+        }
+        portColor += (tgt - portColor) * 0.1;
+        portImg.style.filter = 'grayscale(' + (1-portColor).toFixed(3) + ') contrast(' + (1.05 - portColor*0.03).toFixed(3) + ') brightness(' + (1 + portColor*0.05).toFixed(3) + ')';
+      }
     }
+    /* content stays lit and drifts up, exiting by scrolling out with the stage (no dead void) */
+    var exit = ss(clamp((p-0.5)/0.5,0,1));
     for(var i=0;i<3;i++){
-      var lp = ss((p - (0.06 + i*0.09))*3.2);
-      hl[i].style.opacity = 1 - lp;
-      hl[i].style.transform = 'translateY(' + (-lp*46) + 'px)';
+      hl[i].style.opacity = 1;
+      hl[i].style.transform = 'translateY(' + (-exit*(30 + i*8)) + 'px)';
     }
-    hkick.style.opacity = 1 - ss(p*3.4);
-    var sub = ss((p-0.18)*3);
-    hsub.style.opacity = 1 - sub;
-    hsub.style.transform = 'translateY(' + (-sub*30) + 'px)';
+    hkick.style.opacity = 1;
+    hkick.style.transform = 'translateY(' + (-exit*22) + 'px)';
+    hsub.style.opacity = 1;
+    hsub.style.transform = 'translateY(' + (-exit*38) + 'px)';
     if(hp){
       var pf = ss((p-0.62)*3.2),
           birth = ss((performance.now()-born-350)/1400);

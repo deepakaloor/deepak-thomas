@@ -799,16 +799,55 @@ body.settled .hl>span{animation:none;transform:none}
   var mobile = matchMedia('(max-width:900px)').matches;
 
   /* measure scene + label positions once (recompute on resize), not every frame */
+  var snaps = [];
+  function buildSnaps(){
+    snaps = [];
+    function at(el, frac){ var m = metrics.get(el); if(m && m.h > innerHeight + 4) snaps.push(m.top + frac*(m.h - innerHeight)); }
+    at(sHero, 0.14);      /* headline fully in */
+    at(sStats, 0.62);     /* counters landed */
+    at(sBelief, 0.82);    /* quote fully lit */
+    at(sNow, 0.66);       /* title + facts in */
+    iscenes.forEach(function(sc, idx){ if(idx > 0) at(sc.sec, 0.42); });  /* skip prologue so the top stays free */
+    var jm = metrics.get(sJourney);
+    if(jm && jm.h > innerHeight + 4){ for(var i=0;i<6;i++) snaps.push(jm.top + ((i+0.5)/6)*(jm.h - innerHeight)); }  /* one per chapter */
+    var cm = metrics.get(sCraft), cl = craftLines.length || 5;
+    if(cm && cm.h > innerHeight + 4){ for(var k=0;k<cl;k++) snaps.push(cm.top + (0.04 + 0.9*((k+0.5)/cl))*(cm.h - innerHeight)); }  /* one per line */
+    snaps.sort(function(a,b){ return a-b; });
+  }
   function measure(){
     var list = [sHero,sStats,sJourney,sBelief,sNow,sCraft];
     iscenes.forEach(function(sc){ list.push(sc.sec); });
     labeled.forEach(function(pair){ list.push(pair[0]); });
     metrics.clear();
     list.forEach(function(el){ if(el){ metrics.set(el, {top: el.getBoundingClientRect().top + scrollY, h: el.offsetHeight}); } });
+    buildSnaps();
   }
   measure();
   addEventListener('resize', measure);
   addEventListener('load', measure);
+
+  /* ---- gentle proximity snap: when the scroll pauses near a fully-revealed scene,
+         ease it into reading position, then let the scroll continue. Native smooth
+         scroll auto-cancels the instant the user scrolls again, so it never fights them. ---- */
+  if(!reduced && matchMedia('(pointer:fine)').matches){
+    var snapping = false, idleT = null, snapClear = null;
+    var releaseSnap = function(){ snapping = false; clearTimeout(snapClear); };
+    function snapTo(target){
+      snapping = true; clearTimeout(snapClear);
+      try { window.scrollTo({ top: Math.round(target), behavior: 'smooth' }); }
+      catch(e){ window.scrollTo(0, Math.round(target)); }
+      snapClear = setTimeout(function(){ snapping = false; }, 900);
+    }
+    function trySnap(){
+      if(snapping || !snaps.length) return;
+      var y = scrollY, best = null, bd = 1e9;
+      for(var i=0;i<snaps.length;i++){ var d = Math.abs(snaps[i]-y); if(d < bd){ bd = d; best = snaps[i]; } }
+      if(best != null && bd > 20 && bd < innerHeight*0.4) snapTo(best);
+    }
+    addEventListener('scroll', function(){ if(snapping) return; clearTimeout(idleT); idleT = setTimeout(trySnap, 150); }, {passive:true});
+    /* a real gesture cancels any in-progress settle so we never fight the user */
+    ['wheel','touchstart','keydown','mousedown'].forEach(function(ev){ addEventListener(ev, releaseSnap, {passive:true}); });
+  }
 
   var sp = {hero:0, stats:0, journey:0, belief:0, now:0, craft:0};
 
